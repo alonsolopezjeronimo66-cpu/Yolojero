@@ -8,7 +8,7 @@ import sys
 
 # Configuración de página Streamlit
 st.set_page_config(
-    page_title="Detección de Objetos en Tiempo Real",
+    page_title="Detección de Objetos y rostros en Tiempo Real",
     page_icon="🔍",
     layout="wide"
 )
