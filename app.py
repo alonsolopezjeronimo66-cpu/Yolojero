@@ -8,171 +8,135 @@ import sys
 
 # Configuración de página Streamlit
 st.set_page_config(
-    page_title="Detección de Objetos en Tiempo Real",
-    page_icon="🔍",
+    page_title="Detección de Rostros en Tiempo Real",
+    page_icon="😊",
     layout="wide"
 )
 
-# Función para cargar el modelo YOLOv5 de manera compatible con versiones anteriores de PyTorch
+# -------------------------------
+# FUNCIONES
+# -------------------------------
+
 @st.cache_resource
-def load_yolov5_model(model_path='yolov5s.pt'):
+def load_yolov5_face_model():
+    """Carga el modelo YOLOv5-Face desde Torch Hub o archivo local"""
     try:
-        # Importar yolov5
-        import yolov5
-        
-        # Para versiones de PyTorch anteriores a 2.0, cargar directamente con weights_only=False
-        # o usar el parámetro map_location para asegurar compatibilidad
-        try:
-            # Primer método: cargar con weights_only=False si la versión lo soporta
-            model = yolov5.load(model_path, weights_only=False)
-            return model
-        except TypeError:
-            # Segundo método: si el primer método falla, intentar un enfoque más básico
-            try:
-                model = yolov5.load(model_path)
-                return model
-            except Exception as e:
-                # Si todo falla, intentar cargar el modelo con torch directamente
-                st.warning(f"Intentando método alternativo de carga...")
-                
-                # Modificar sys.path temporalmente para poder importar torch correctamente
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                if current_dir not in sys.path:
-                    sys.path.append(current_dir)
-                
-                # Cargar el modelo con torch directamente
-                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-                model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
-                return model
-    
+        st.info("🔵 Cargando modelo YOLOv5-Face (detección de rostros)...")
+        # Intentar cargar el modelo YOLOv5-Face
+        model = torch.hub.load(
+            'WongKinYiu/yolov5', 
+            'custom', 
+            path='yolov5n-face.pt',  # Puedes reemplazar por yolov5s-face.pt si lo tienes
+            source='github'
+        )
+        return model
     except Exception as e:
-        st.error(f"❌ Error al cargar el modelo: {str(e)}")
+        st.error(f"❌ No se pudo cargar YOLOv5-Face: {e}")
         st.info("""
-        Recomendaciones:
-        1. Instalar una versión compatible de PyTorch y YOLOv5:
-           ```
-           pip install torch==1.12.0 torchvision==0.13.0
-           pip install yolov5==7.0.9
-           ```
-        2. Asegúrate de tener el archivo del modelo en la ubicación correcta
-        3. Si el problema persiste, intenta descargar el modelo directamente de torch hub
+        Solución:
+        1. Descarga el modelo desde: https://github.com/deepcam-cn/yolov5-face
+        2. Colócalo en la carpeta del proyecto con el nombre 'yolov5n-face.pt'
         """)
         return None
 
-# Título y descripción de la aplicación
-st.title("🔍 Detección de Objetos en Imágenes")
+
+# -------------------------------
+# INTERFAZ PRINCIPAL
+# -------------------------------
+
+st.title("😊 Detección de Rostros en Imágenes")
 st.markdown("""
-Esta aplicación utiliza YOLOv5 para detectar objetos en imágenes capturadas con tu cámara.
-Ajusta los parámetros en la barra lateral para personalizar la detección.
+Esta aplicación utiliza **YOLOv5-Face** para detectar rostros humanos en imágenes
+capturadas con tu cámara o subidas desde tu dispositivo.
 """)
 
-# Cargar el modelo
-with st.spinner("Cargando modelo YOLOv5..."):
-    model = load_yolov5_model()
+# Cargar modelo YOLOv5-Face
+with st.spinner("Cargando modelo YOLOv5-Face..."):
+    model = load_yolov5_face_model()
 
-# Si el modelo se cargó correctamente, configuramos los parámetros
 if model:
-    # Sidebar para los parámetros de configuración
-    st.sidebar.title("Parámetros")
-    
-    # Ajustar parámetros del modelo
-    with st.sidebar:
-        st.subheader('Configuración de detección')
-        model.conf = st.slider('Confianza mínima', 0.0, 1.0, 0.25, 0.01)
-        model.iou = st.slider('Umbral IoU', 0.0, 1.0, 0.45, 0.01)
-        st.caption(f"Confianza: {model.conf:.2f} | IoU: {model.iou:.2f}")
-        
-        # Opciones adicionales
-        st.subheader('Opciones avanzadas')
-        try:
-            model.agnostic = st.checkbox('NMS class-agnostic', False)
-            model.multi_label = st.checkbox('Múltiples etiquetas por caja', False)
-            model.max_det = st.number_input('Detecciones máximas', 10, 2000, 1000, 10)
-        except:
-            st.warning("Algunas opciones avanzadas no están disponibles con esta configuración")
-    
-    # Contenedor principal para la cámara y resultados
+    # Barra lateral
+    st.sidebar.title("Configuración")
+    model.conf = st.sidebar.slider('Confianza mínima', 0.0, 1.0, 0.25, 0.01)
+    model.iou = st.sidebar.slider('Umbral IoU', 0.0, 1.0, 0.45, 0.01)
+    st.sidebar.caption(f"Confianza: {model.conf:.2f} | IoU: {model.iou:.2f}")
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Opciones de entrada")
+    opcion = st.sidebar.radio("Selecciona una fuente:", ["📸 Cámara", "🖼️ Subir imagen"])
+
+    # Contenedor principal
     main_container = st.container()
-    
+
     with main_container:
-        # Capturar foto con la cámara
-        picture = st.camera_input("Capturar imagen", key="camera")
-        
+        if opcion == "📸 Cámara":
+            picture = st.camera_input("Captura una imagen con tu cámara", key="camera")
+        else:
+            picture = st.file_uploader("Sube una imagen", type=["jpg", "jpeg", "png"])
+
         if picture:
-            # Procesar la imagen capturada
             bytes_data = picture.getvalue()
             cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-            
-            # Realizar la detección
-            with st.spinner("Detectando objetos..."):
+
+            with st.spinner("Detectando rostros..."):
                 try:
                     results = model(cv2_img)
                 except Exception as e:
                     st.error(f"Error durante la detección: {str(e)}")
                     st.stop()
-            
+
             # Parsear resultados
             try:
                 predictions = results.pred[0]
                 boxes = predictions[:, :4]
                 scores = predictions[:, 4]
                 categories = predictions[:, 5]
-                
-                # Mostrar resultados
+                label_names = model.names
+
+                # Filtrar solo categorías con "face" o "person"
+                filtered_indices = [
+                    i for i, c in enumerate(categories)
+                    if 'face' in label_names[int(c)] or 'person' in label_names[int(c)]
+                ]
+                if len(filtered_indices) > 0:
+                    boxes = boxes[filtered_indices]
+                    scores = scores[filtered_indices]
+                    categories = categories[filtered_indices]
+                else:
+                    boxes = []
+                    scores = []
+                    categories = []
+
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
-                    st.subheader("Imagen con detecciones")
-                    # Renderizar las detecciones
+                    st.subheader("🧠 Rostros detectados")
                     results.render()
-                    # Mostrar imagen con las detecciones
-                    st.image(cv2_img, channels='BGR', use_container_width=True)
-                
+                    st.image(results.ims[0], channels='BGR', use_container_width=True)
+
                 with col2:
-                    st.subheader("Objetos detectados")
-                    
-                    # Obtener nombres de etiquetas
-                    label_names = model.names
-                    
-                    # Contar categorías
-                    category_count = {}
-                    for category in categories:
-                        category_idx = int(category.item()) if hasattr(category, 'item') else int(category)
-                        if category_idx in category_count:
-                            category_count[category_idx] += 1
-                        else:
-                            category_count[category_idx] = 1
-                    
-                    # Crear dataframe para mostrar resultados
-                    data = []
-                    for category, count in category_count.items():
-                        label = label_names[category]
-                        confidence = scores[categories == category].mean().item() if len(scores) > 0 else 0
-                        data.append({
-                            "Categoría": label,
-                            "Cantidad": count,
-                            "Confianza promedio": f"{confidence:.2f}"
+                    st.subheader("📋 Información de detección")
+                    if len(categories) > 0:
+                        df = pd.DataFrame({
+                            "Rostro #": range(1, len(categories) + 1),
+                            "Confianza": [f"{s.item():.2f}" for s in scores]
                         })
-                    
-                    if data:
-                        df = pd.DataFrame(data)
                         st.dataframe(df, use_container_width=True)
-                        
-                        # Mostrar gráfico de barras
-                        st.bar_chart(df.set_index('Categoría')['Cantidad'])
+                        st.bar_chart(df.set_index("Rostro #")["Confianza"])
                     else:
-                        st.info("No se detectaron objetos con los parámetros actuales.")
-                        st.caption("Prueba a reducir el umbral de confianza en la barra lateral.")
+                        st.info("No se detectaron rostros. Prueba con otra imagen o baja el umbral de confianza.")
             except Exception as e:
                 st.error(f"Error al procesar los resultados: {str(e)}")
-                st.stop()
 else:
-    st.error("No se pudo cargar el modelo. Por favor verifica las dependencias e inténtalo nuevamente.")
+    st.error("No se pudo cargar el modelo YOLOv5-Face.")
     st.stop()
 
-# Información adicional y pie de página
+# -------------------------------
+# PIE DE PÁGINA
+# -------------------------------
 st.markdown("---")
 st.caption("""
-**Acerca de la aplicación**: Esta aplicación utiliza YOLOv5 para detección de objetos en tiempo real.
-Desarrollada con Streamlit y PyTorch.
+**Aplicación de Detección Facial** desarrollada con Streamlit, PyTorch y YOLOv5-Face.  
+Creada por Jerónimo Alonso ⚽  
 """)
+
