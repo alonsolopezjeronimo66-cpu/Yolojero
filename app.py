@@ -60,7 +60,7 @@ def load_yolov5_model(model_path='yolov5s.pt'):
         return None
 
 # Título y descripción de la aplicación
-st.title("🔍 Detección de Objetos en Imágenes")
+st.title("🔍 Detección de Objetos y rostros en Imágenes o fotos")
 st.markdown("""
 Esta aplicación utiliza YOLOv5 para detectar objetos en imágenes capturadas con tu cámara.
 Ajusta los parámetros en la barra lateral para personalizar la detección.
